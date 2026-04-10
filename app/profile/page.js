@@ -43,9 +43,11 @@ export default function ProfilePage() {
       if (u) {
         // Initial fetch (fallback)
         try {
-          const p = await apiFetch("/api/users/me");
+          const p = await apiFetch("/api/users/me", { authUser: u });
           setProfile(p);
-          const m = await apiFetch("/api/users/me/metrics");
+          const m = await apiFetch("/api/users/me/metrics", {
+            authUser: u,
+          });
           setMetrics(m);
         } catch {}
         // Realtime user doc (balance & role updates)
@@ -62,11 +64,11 @@ export default function ProfilePage() {
         // Simplified queries without orderBy to avoid index issues
         const qBetsYes = query(
           collection(db, "bets"),
-          where("yesUserId", "==", u.uid)
+          where("yesUserId", "==", u.uid),
         );
         const qBetsNo = query(
           collection(db, "bets"),
-          where("noUserId", "==", u.uid)
+          where("noUserId", "==", u.uid),
         );
 
         const unsubBetsYes = onSnapshot(qBetsYes, async (snap) => {
@@ -83,19 +85,19 @@ export default function ProfilePage() {
           const allUserBets = [...yesBets, ...noBets];
           const uniqueBets = allUserBets.filter(
             (bet, index, self) =>
-              index === self.findIndex((b) => b.id === bet.id)
+              index === self.findIndex((b) => b.id === bet.id),
           );
 
           // Sort by creation date
           uniqueBets.sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
           );
 
           setBets(uniqueBets);
 
           // Fetch event titles for bets
           const eventIds = Array.from(
-            new Set(uniqueBets.map((b) => b.eventId).filter(Boolean))
+            new Set(uniqueBets.map((b) => b.eventId).filter(Boolean)),
           );
           const titles = {};
           await Promise.all(
@@ -104,7 +106,7 @@ export default function ProfilePage() {
                 const evSnap = await getDoc(doc(db, "events", eid));
                 if (evSnap.exists()) titles[eid] = evSnap.data().title;
               } catch {}
-            })
+            }),
           );
           setEventTitles(titles);
           // Refresh metrics after bet change (simple approach)
@@ -117,14 +119,14 @@ export default function ProfilePage() {
         const qOrders = query(
           collection(db, "orders"),
           where("userId", "==", u.uid),
-          where("status", "==", "open")
+          where("status", "==", "open"),
         );
         const unsubOrders = onSnapshot(qOrders, (snap) => {
           const ords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           setOpenOrders(ords);
           const locked = ords.reduce(
             (sum, o) => sum + (Number(o.lockedAmount) || 0),
-            0
+            0,
           );
           setLockedValue(Number(locked.toFixed(2)));
         });
@@ -133,14 +135,14 @@ export default function ProfilePage() {
         const qAllOrders = query(
           collection(db, "orders"),
           where("userId", "==", u.uid),
-          orderBy("createdAt", "desc")
+          orderBy("createdAt", "desc"),
         );
         const unsubAllOrders = onSnapshot(qAllOrders, async (snap) => {
           const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           setAllOrders(list);
           // Fetch event titles for orders
           const eventIds = Array.from(
-            new Set(list.map((o) => o.eventId).filter(Boolean))
+            new Set(list.map((o) => o.eventId).filter(Boolean)),
           );
           const titles = {};
           await Promise.all(
@@ -149,7 +151,7 @@ export default function ProfilePage() {
                 const evSnap = await getDoc(doc(db, "events", eid));
                 if (evSnap.exists()) titles[eid] = evSnap.data().title;
               } catch {}
-            })
+            }),
           );
           setEventTitles((prev) => ({ ...prev, ...titles }));
         });
@@ -157,7 +159,7 @@ export default function ProfilePage() {
         const qLedger = query(
           collection(db, "users", u.uid, "ledger"),
           orderBy("createdAt", "desc"),
-          limit(30)
+          limit(30),
         );
         const unsubLedger = onSnapshot(qLedger, (snap) => {
           setLedger(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -273,15 +275,28 @@ export default function ProfilePage() {
         {activeTab === "bets" && (
           <div className="space-y-3 text-xs sm:text-sm">
             {bets.map((b) => {
+              // Check if this is a self-match (same user on both sides)
+              const isSelfMatch =
+                b.yesUserId === b.noUserId && b.yesUserId === user.uid;
+
               // Determine user's side and stake
               const userSide = b.yesUserId === user.uid ? "yes" : "no";
               const userStake =
                 userSide === "yes" ? b.yesLocked || 0 : b.noLocked || 0;
+
+              // For self-matches, show total stake and net result
+              const totalStake = isSelfMatch
+                ? (b.yesLocked || 0) + (b.noLocked || 0)
+                : userStake;
+              const displaySide = isSelfMatch ? "both" : userSide;
+
               const isWinner =
+                !isSelfMatch &&
                 b.status === "settled" &&
                 ((b.winner === "yes" && userSide === "yes") ||
                   (b.winner === "no" && userSide === "no"));
-              const isLoser = b.status === "settled" && !isWinner;
+              const isLoser =
+                !isSelfMatch && b.status === "settled" && !isWinner;
 
               return (
                 <div
@@ -306,38 +321,55 @@ export default function ProfilePage() {
                   <div className="flex flex-wrap gap-2 sm:contents">
                     <span
                       className={`sm:col-span-1 capitalize font-medium px-2 py-1 text-xs rounded ${
-                        userSide === "yes"
-                          ? "bg-emerald-900 text-emerald-300 border border-emerald-700"
-                          : "bg-rose-900 text-rose-300 border border-rose-700"
+                        isSelfMatch
+                          ? "bg-purple-900 text-purple-300 border border-purple-700"
+                          : displaySide === "yes"
+                            ? "bg-emerald-900 text-emerald-300 border border-emerald-700"
+                            : "bg-rose-900 text-rose-300 border border-rose-700"
                       }`}
                     >
-                      {userSide}
+                      {isSelfMatch ? "Self-Match" : displaySide}
                     </span>
                     <span className="sm:col-span-1 text-neutral-300">
-                      ₹{userStake.toFixed(2)}
+                      ₹{totalStake.toFixed(2)}
                     </span>
                     <span className="sm:col-span-1 text-neutral-500 text-xs">
-                      {b.oddsSnapshot
-                        ? (b.oddsSnapshot * 100).toFixed(1) + "%"
-                        : ""}
+                      {isSelfMatch
+                        ? "Hedge"
+                        : b.oddsSnapshot
+                          ? (b.oddsSnapshot * 100).toFixed(1) + "%"
+                          : ""}
                     </span>
                     <span
                       className={`sm:col-span-1 text-xs px-2 py-1 rounded ${
                         b.status === "settled"
-                          ? isWinner
-                            ? "bg-lime-900 text-lime-400 border border-lime-700"
-                            : "bg-red-900 text-red-400 border border-red-700"
+                          ? isSelfMatch
+                            ? "bg-orange-900 text-orange-400 border border-orange-700"
+                            : isWinner
+                              ? "bg-lime-900 text-lime-400 border border-lime-700"
+                              : "bg-red-900 text-red-400 border border-red-700"
                           : "bg-neutral-800 text-neutral-500"
                       }`}
                     >
                       {b.status === "settled"
-                        ? isWinner
-                          ? "Won"
-                          : "Lost"
+                        ? isSelfMatch
+                          ? "Commission Paid"
+                          : isWinner
+                            ? "Won"
+                            : "Lost"
                         : "Open"}
                     </span>
                     <span className="sm:col-span-1 sm:text-right text-cyan-300 font-mono">
-                      {isWinner ? (
+                      {isSelfMatch && b.status === "settled" ? (
+                        <div className="text-right">
+                          <div className="text-red-400">
+                            -₹{(b.commission || 0).toFixed(2)}
+                          </div>
+                          <div className="text-xs text-neutral-500">
+                            (commission loss)
+                          </div>
+                        </div>
+                      ) : isWinner ? (
                         <div className="text-right">
                           <div className="text-cyan-300">
                             ₹
@@ -458,31 +490,31 @@ export default function ProfilePage() {
                       o.status === "open"
                         ? "bg-cyan-900 text-cyan-300 border border-cyan-700"
                         : o.status === "filled"
-                        ? "bg-lime-900 text-lime-300 border border-lime-700"
-                        : o.status === "cancelled"
-                        ? "bg-neutral-800 text-neutral-400 border border-neutral-700"
-                        : o.status === "refunded"
-                        ? "bg-orange-900 text-orange-300 border border-orange-700"
-                        : "bg-neutral-800 text-neutral-400 border border-neutral-700"
+                          ? "bg-lime-900 text-lime-300 border border-lime-700"
+                          : o.status === "cancelled"
+                            ? "bg-neutral-800 text-neutral-400 border border-neutral-700"
+                            : o.status === "refunded"
+                              ? "bg-orange-900 text-orange-300 border border-orange-700"
+                              : "bg-neutral-800 text-neutral-400 border border-neutral-700"
                     }`}
                   >
                     {o.status === "refunded"
                       ? "Refunded"
                       : o.status === "filled"
-                      ? "Filled"
-                      : o.status === "cancelled"
-                      ? "Cancelled"
-                      : o.status === "open"
-                      ? "Open"
-                      : o.status}
+                        ? "Filled"
+                        : o.status === "cancelled"
+                          ? "Cancelled"
+                          : o.status === "open"
+                            ? "Open"
+                            : o.status}
                   </span>
                 </span>
                 <span className="col-span-1 font-mono text-neutral-400 text-xs">
                   {o.refundedAmount
                     ? `₹${o.refundedAmount}`
                     : o.lockedAmount
-                    ? `₹${o.lockedAmount}`
-                    : "-"}
+                      ? `₹${o.lockedAmount}`
+                      : "-"}
                 </span>
               </div>
             ))}
@@ -544,8 +576,8 @@ function MetricCard({ label, value, positive }) {
           positive === undefined
             ? ""
             : positive
-            ? "text-lime-400"
-            : "text-red-400"
+              ? "text-lime-400"
+              : "text-red-400"
         }`}
       >
         {value}
@@ -562,6 +594,8 @@ function formatLedgerType(t) {
       return "Order Cancelled";
     case "payout":
       return "Event Payout";
+    case "self-match-settlement":
+      return "Self-Match Commission";
     default:
       return t;
   }
