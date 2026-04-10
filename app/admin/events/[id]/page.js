@@ -19,7 +19,7 @@ export default function AdminEventManage() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const p = await apiFetch("/api/users/me");
+        const p = await apiFetch("/api/users/me", { authUser: u });
         setProfile(p);
       }
     });

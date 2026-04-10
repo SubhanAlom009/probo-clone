@@ -97,7 +97,7 @@ export default function TradersSection({ eventId }) {
       },
       (error) => {
         console.error("Error listening to bets:", error);
-      }
+      },
     );
 
     return () => {
@@ -146,9 +146,7 @@ export default function TradersSection({ eventId }) {
     }
   };
 
-  const handleViewProfile = (trader) => {
-    console.log("View profile:", trader);
-  };
+  const handleViewProfile = () => {};
 
   if (authLoading || loading) {
     return (
@@ -163,8 +161,8 @@ export default function TradersSection({ eventId }) {
             {authLoading
               ? "Checking auth..."
               : updating
-              ? "Updating..."
-              : "Loading traders..."}
+                ? "Updating..."
+                : "Loading traders..."}
           </span>
         </div>
       </div>
@@ -279,8 +277,8 @@ export default function TradersSection({ eventId }) {
                     trader?.eventPosition?.position === "YES"
                       ? "text-green-400"
                       : trader?.eventPosition?.position === "NO"
-                      ? "text-red-400"
-                      : "text-neutral-400"
+                        ? "text-red-400"
+                        : "text-neutral-400"
                   }`}
                 >
                   {trader?.eventPosition?.position ?? "-"}
@@ -298,8 +296,8 @@ export default function TradersSection({ eventId }) {
               trader?.eventPosition?.position === "YES"
                 ? "bg-green-900 text-green-400"
                 : trader?.eventPosition?.position === "NO"
-                ? "bg-red-900 text-red-400"
-                : "bg-neutral-700 text-neutral-400"
+                  ? "bg-red-900 text-red-400"
+                  : "bg-neutral-700 text-neutral-400"
             }`}
           >
             ₹{Number(trader?.eventPosition?.totalStake ?? 0).toFixed(0)}

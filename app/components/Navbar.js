@@ -37,19 +37,15 @@ export default function Navbar() {
       setUser(u);
       if (u) {
         try {
-          const p = await apiFetch("/api/users/me");
+          const p = await apiFetch("/api/users/me", { authUser: u });
           setProfile(p);
         } catch {}
-        // DEV: Log Firebase ID token for API use
-        u.getIdToken().then((token) => {
-          console.log("[Firebase ID Token]", token);
-        });
         // Listen to conversations for unread count
         try {
           if (unsubConv) unsubConv();
           const q = query(
             collection(db, "conversations"),
-            where("participants", "array-contains", u.uid)
+            where("participants", "array-contains", u.uid),
           );
           unsubConv = onSnapshot(q, (snap) => {
             let total = 0;

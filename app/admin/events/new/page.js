@@ -20,7 +20,7 @@ export default function NewEventPage() {
       setUser(u);
       if (u) {
         try {
-          const p = await apiFetch("/api/users/me");
+          const p = await apiFetch("/api/users/me", { authUser: u });
           setProfile(p);
         } catch (e) {
           setError(e.message);

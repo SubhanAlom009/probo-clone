@@ -43,9 +43,11 @@ export default function ProfilePage() {
       if (u) {
         // Initial fetch (fallback)
         try {
-          const p = await apiFetch("/api/users/me");
+          const p = await apiFetch("/api/users/me", { authUser: u });
           setProfile(p);
-          const m = await apiFetch("/api/users/me/metrics");
+          const m = await apiFetch("/api/users/me/metrics", {
+            authUser: u,
+          });
           setMetrics(m);
         } catch {}
         // Realtime user doc (balance & role updates)
@@ -62,11 +64,11 @@ export default function ProfilePage() {
         // Simplified queries without orderBy to avoid index issues
         const qBetsYes = query(
           collection(db, "bets"),
-          where("yesUserId", "==", u.uid)
+          where("yesUserId", "==", u.uid),
         );
         const qBetsNo = query(
           collection(db, "bets"),
-          where("noUserId", "==", u.uid)
+          where("noUserId", "==", u.uid),
         );
 
         const unsubBetsYes = onSnapshot(qBetsYes, async (snap) => {
@@ -83,19 +85,19 @@ export default function ProfilePage() {
           const allUserBets = [...yesBets, ...noBets];
           const uniqueBets = allUserBets.filter(
             (bet, index, self) =>
-              index === self.findIndex((b) => b.id === bet.id)
+              index === self.findIndex((b) => b.id === bet.id),
           );
 
           // Sort by creation date
           uniqueBets.sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
           );
 
           setBets(uniqueBets);
 
           // Fetch event titles for bets
           const eventIds = Array.from(
-            new Set(uniqueBets.map((b) => b.eventId).filter(Boolean))
+            new Set(uniqueBets.map((b) => b.eventId).filter(Boolean)),
           );
           const titles = {};
           await Promise.all(
@@ -104,7 +106,7 @@ export default function ProfilePage() {
                 const evSnap = await getDoc(doc(db, "events", eid));
                 if (evSnap.exists()) titles[eid] = evSnap.data().title;
               } catch {}
-            })
+            }),
           );
           setEventTitles(titles);
           // Refresh metrics after bet change (simple approach)
@@ -117,14 +119,14 @@ export default function ProfilePage() {
         const qOrders = query(
           collection(db, "orders"),
           where("userId", "==", u.uid),
-          where("status", "==", "open")
+          where("status", "==", "open"),
         );
         const unsubOrders = onSnapshot(qOrders, (snap) => {
           const ords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           setOpenOrders(ords);
           const locked = ords.reduce(
             (sum, o) => sum + (Number(o.lockedAmount) || 0),
-            0
+            0,
           );
           setLockedValue(Number(locked.toFixed(2)));
         });
@@ -133,14 +135,14 @@ export default function ProfilePage() {
         const qAllOrders = query(
           collection(db, "orders"),
           where("userId", "==", u.uid),
-          orderBy("createdAt", "desc")
+          orderBy("createdAt", "desc"),
         );
         const unsubAllOrders = onSnapshot(qAllOrders, async (snap) => {
           const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           setAllOrders(list);
           // Fetch event titles for orders
           const eventIds = Array.from(
-            new Set(list.map((o) => o.eventId).filter(Boolean))
+            new Set(list.map((o) => o.eventId).filter(Boolean)),
           );
           const titles = {};
           await Promise.all(
@@ -149,7 +151,7 @@ export default function ProfilePage() {
                 const evSnap = await getDoc(doc(db, "events", eid));
                 if (evSnap.exists()) titles[eid] = evSnap.data().title;
               } catch {}
-            })
+            }),
           );
           setEventTitles((prev) => ({ ...prev, ...titles }));
         });
@@ -157,7 +159,7 @@ export default function ProfilePage() {
         const qLedger = query(
           collection(db, "users", u.uid, "ledger"),
           orderBy("createdAt", "desc"),
-          limit(30)
+          limit(30),
         );
         const unsubLedger = onSnapshot(qLedger, (snap) => {
           setLedger(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -322,8 +324,8 @@ export default function ProfilePage() {
                         isSelfMatch
                           ? "bg-purple-900 text-purple-300 border border-purple-700"
                           : displaySide === "yes"
-                          ? "bg-emerald-900 text-emerald-300 border border-emerald-700"
-                          : "bg-rose-900 text-rose-300 border border-rose-700"
+                            ? "bg-emerald-900 text-emerald-300 border border-emerald-700"
+                            : "bg-rose-900 text-rose-300 border border-rose-700"
                       }`}
                     >
                       {isSelfMatch ? "Self-Match" : displaySide}
@@ -335,8 +337,8 @@ export default function ProfilePage() {
                       {isSelfMatch
                         ? "Hedge"
                         : b.oddsSnapshot
-                        ? (b.oddsSnapshot * 100).toFixed(1) + "%"
-                        : ""}
+                          ? (b.oddsSnapshot * 100).toFixed(1) + "%"
+                          : ""}
                     </span>
                     <span
                       className={`sm:col-span-1 text-xs px-2 py-1 rounded ${
@@ -344,8 +346,8 @@ export default function ProfilePage() {
                           ? isSelfMatch
                             ? "bg-orange-900 text-orange-400 border border-orange-700"
                             : isWinner
-                            ? "bg-lime-900 text-lime-400 border border-lime-700"
-                            : "bg-red-900 text-red-400 border border-red-700"
+                              ? "bg-lime-900 text-lime-400 border border-lime-700"
+                              : "bg-red-900 text-red-400 border border-red-700"
                           : "bg-neutral-800 text-neutral-500"
                       }`}
                     >
@@ -353,8 +355,8 @@ export default function ProfilePage() {
                         ? isSelfMatch
                           ? "Commission Paid"
                           : isWinner
-                          ? "Won"
-                          : "Lost"
+                            ? "Won"
+                            : "Lost"
                         : "Open"}
                     </span>
                     <span className="sm:col-span-1 sm:text-right text-cyan-300 font-mono">
@@ -488,31 +490,31 @@ export default function ProfilePage() {
                       o.status === "open"
                         ? "bg-cyan-900 text-cyan-300 border border-cyan-700"
                         : o.status === "filled"
-                        ? "bg-lime-900 text-lime-300 border border-lime-700"
-                        : o.status === "cancelled"
-                        ? "bg-neutral-800 text-neutral-400 border border-neutral-700"
-                        : o.status === "refunded"
-                        ? "bg-orange-900 text-orange-300 border border-orange-700"
-                        : "bg-neutral-800 text-neutral-400 border border-neutral-700"
+                          ? "bg-lime-900 text-lime-300 border border-lime-700"
+                          : o.status === "cancelled"
+                            ? "bg-neutral-800 text-neutral-400 border border-neutral-700"
+                            : o.status === "refunded"
+                              ? "bg-orange-900 text-orange-300 border border-orange-700"
+                              : "bg-neutral-800 text-neutral-400 border border-neutral-700"
                     }`}
                   >
                     {o.status === "refunded"
                       ? "Refunded"
                       : o.status === "filled"
-                      ? "Filled"
-                      : o.status === "cancelled"
-                      ? "Cancelled"
-                      : o.status === "open"
-                      ? "Open"
-                      : o.status}
+                        ? "Filled"
+                        : o.status === "cancelled"
+                          ? "Cancelled"
+                          : o.status === "open"
+                            ? "Open"
+                            : o.status}
                   </span>
                 </span>
                 <span className="col-span-1 font-mono text-neutral-400 text-xs">
                   {o.refundedAmount
                     ? `₹${o.refundedAmount}`
                     : o.lockedAmount
-                    ? `₹${o.lockedAmount}`
-                    : "-"}
+                      ? `₹${o.lockedAmount}`
+                      : "-"}
                 </span>
               </div>
             ))}
@@ -574,8 +576,8 @@ function MetricCard({ label, value, positive }) {
           positive === undefined
             ? ""
             : positive
-            ? "text-lime-400"
-            : "text-red-400"
+              ? "text-lime-400"
+              : "text-red-400"
         }`}
       >
         {value}

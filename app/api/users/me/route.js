@@ -1,21 +1,30 @@
-import { verifyToken } from "@/lib/firebaseAdmin";
-import { getUserProfile, createUserProfile } from "@/lib/db";
+import { verifyToken, adminDb } from "@/lib/firebaseAdmin";
 import { json, err } from "@/lib/apiUtil";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function GET(req) {
   try {
     const authUser = await verifyToken(req);
-    let profile = await getUserProfile(authUser.uid);
-    if (!profile) {
-      await createUserProfile(authUser);
-      profile = await getUserProfile(authUser.uid);
+    const userRef = adminDb.collection("users").doc(authUser.uid);
+    let snap = await userRef.get();
+
+    if (!snap.exists) {
+      await userRef.set(
+        {
+          displayName: authUser.name || authUser.email?.split("@")[0] || "User",
+          photoURL: authUser.picture || null,
+          balance: 1000,
+          role: "admin",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      snap = await userRef.get();
     }
-    // Only top up to 1000 on first creation, not on every login
-    // This prevents interfering with legitimate losses from betting
-    return json(profile);
+
+    return json({ id: snap.id, ...snap.data() });
   } catch (e) {
-    return err(e.message, 401);
+    return err(e.message || "Unauthorized", 401);
   }
 }
