@@ -1,16 +1,13 @@
 import { placeOrder } from "@/lib/db";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { verifyToken } from "@/lib/firebaseAdmin";
+import { verifyToken, adminDb as db } from "@/lib/firebaseAdmin";
 import { json, err } from "@/lib/apiUtil";
 
 export async function GET(req, context) {
   const params = await context.params;
   const url = new URL(req.url);
   const userId = url.searchParams.get("userId");
-  const q = query(collection(db, "bets"), where("eventId", "==", params.id));
-  const snap = await getDocs(q);
-  let rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const q = db.collection("bets").where("eventId", "==", params.id);
+  const snap = await q.get();
 
   if (userId) {
     rows = rows.filter((b) => b.yesUserId === userId || b.noUserId === userId);

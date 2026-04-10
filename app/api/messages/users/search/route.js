@@ -1,13 +1,4 @@
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from "firebase/firestore";
-import { verifyToken } from "@/lib/firebaseAdmin";
+import { verifyToken, adminDb as db } from "@/lib/firebaseAdmin";
 import { json, err } from "@/lib/apiUtil";
 
 // Search users for messaging
@@ -22,9 +13,9 @@ export async function GET(req) {
     }
 
     // Search users by display name
-    const q = query(collection(db, "users"), orderBy("displayName"), limit(20));
+    const q = db.collection("users").orderBy("displayName").limit(20);
 
-    const snapshot = await getDocs(q);
+    const snapshot = await q.get();
     const users = snapshot.docs
       .map((doc) => ({
         id: doc.id,
@@ -38,7 +29,7 @@ export async function GET(req) {
       .filter(
         (user) =>
           user.id !== authUser.uid && // Exclude current user
-          user.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
+          user.displayName?.toLowerCase().includes(searchQuery.toLowerCase()),
       );
 
     return json({ users });

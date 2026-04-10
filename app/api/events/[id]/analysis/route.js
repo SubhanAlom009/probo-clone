@@ -1,14 +1,5 @@
 import { json, err } from "@/lib/apiUtil";
-import { verifyToken } from "@/lib/firebaseAdmin";
-import { db } from "@/lib/firebase";
-import {
-  doc,
-  getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { verifyToken, adminDb as db } from "@/lib/firebaseAdmin";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // In-memory cache: eventId -> { data, ts }
@@ -34,16 +25,15 @@ export async function GET(req, context) {
       return json({ analysis: cached.data });
     }
 
-    const eventSnap = await getDoc(doc(db, "events", eventId));
-    if (!eventSnap.exists()) return err("Event not found", 404);
+    const eventSnap = await db.collection("events").doc(eventId).get();
+    if (!eventSnap.exists) return err("Event not found", 404);
     const event = eventSnap.data();
 
-    const betsQ = query(
-      collection(db, "bets"),
-      where("eventId", "==", eventId),
-      where("status", "==", "matched")
-    );
-    const betsSnap = await getDocs(betsQ);
+    const betsQ = db
+      .collection("bets")
+      .where("eventId", "==", eventId)
+      .where("status", "==", "matched");
+    const betsSnap = await betsQ.get();
     const bets = betsSnap.docs.map((d) => d.data());
 
     const analysis = await buildAnalysis(eventId, event, bets);
@@ -171,8 +161,8 @@ Format your response as JSON with these exact keys:
             sentiment: text.toLowerCase().includes("bullish")
               ? "bullish"
               : text.toLowerCase().includes("bearish")
-              ? "bearish"
-              : "neutral",
+                ? "bearish"
+                : "neutral",
             confidence: 75,
             keyFactors: ["AI analysis available", "Market data processed"],
             riskLevel: "medium",
@@ -194,11 +184,11 @@ Format your response as JSON with these exact keys:
       yesPercentage > 60
         ? "bullish"
         : yesPercentage < 40
-        ? "bearish"
-        : "neutral",
+          ? "bearish"
+          : "neutral",
     confidence: Math.min(
       90,
-      Math.max(50, totalVolume / 10 + uniqueTraders.size * 5)
+      Math.max(50, totalVolume / 10 + uniqueTraders.size * 5),
     ),
     keyFactors: [
       `${yesPercentage.toFixed(1)}% market leans YES`,
@@ -213,14 +203,14 @@ Format your response as JSON with these exact keys:
     recommendation: generateSimpleRecommendation(
       yesPercentage,
       totalVolume,
-      hoursRemaining
+      hoursRemaining,
     ),
     summary: `Market showing ${
       yesPercentage > 60
         ? "strong YES"
         : yesPercentage < 40
-        ? "strong NO"
-        : "mixed"
+          ? "strong NO"
+          : "mixed"
     } sentiment with ₹${totalVolume} volume`,
   };
 
@@ -238,23 +228,23 @@ Format your response as JSON with these exact keys:
       yes: Number(yesPercentage.toFixed(1)),
       no: Number((100 - yesPercentage).toFixed(1)),
       confidence: getConfidenceLabel(
-        aiInsights?.confidence || fallbackAnalysis.confidence
+        aiInsights?.confidence || fallbackAnalysis.confidence,
       ),
     },
     analysis: {
       marketSentiment: {
         sentiment: getSentimentLabel(
-          aiInsights?.sentiment || fallbackAnalysis.sentiment
+          aiInsights?.sentiment || fallbackAnalysis.sentiment,
         ),
         color: getSentimentColor(
-          aiInsights?.sentiment || fallbackAnalysis.sentiment
+          aiInsights?.sentiment || fallbackAnalysis.sentiment,
         ),
         description: aiInsights?.summary || fallbackAnalysis.summary,
       },
       volumeAnalysis: getVolumeAnalysis(totalVolume, uniqueTraders.size),
       timeAnalysis: getTimeAnalysis(hoursRemaining),
       riskAssessment: getRiskAssessment(
-        aiInsights?.riskLevel || fallbackAnalysis.riskLevel
+        aiInsights?.riskLevel || fallbackAnalysis.riskLevel,
       ),
       momentum: getMomentum(yesPercentage, totalVolume),
     },
@@ -262,17 +252,17 @@ Format your response as JSON with these exact keys:
       action: getRecommendationAction(
         yesPercentage,
         totalVolume,
-        hoursRemaining
+        hoursRemaining,
       ),
       confidence: getConfidenceLabel(
-        aiInsights?.confidence || fallbackAnalysis.confidence
+        aiInsights?.confidence || fallbackAnalysis.confidence,
       ),
       reasoning: aiInsights?.recommendation || fallbackAnalysis.recommendation,
       keyFactors: aiInsights?.keyFactors || fallbackAnalysis.keyFactors,
       suggestedStake: getSuggestedStake(
         aiInsights?.confidence || fallbackAnalysis.confidence,
         totalVolume,
-        hoursRemaining
+        hoursRemaining,
       ),
     },
     lastUpdated: new Date().toISOString(),
@@ -396,8 +386,8 @@ function getMomentum(yesPercentage, totalVolume) {
     yesPercentage >= 55
       ? "Uptrend"
       : yesPercentage <= 45
-      ? "Downtrend"
-      : "Sideways";
+        ? "Downtrend"
+        : "Sideways";
   let description = "Price movement appears range-bound.";
   if (trend === "Uptrend")
     description = "YES odds gaining momentum; buyers dominant recently.";
@@ -407,8 +397,8 @@ function getMomentum(yesPercentage, totalVolume) {
     totalVolume > 5000
       ? " High liquidity supports moves."
       : totalVolume > 1000
-      ? " Moderate liquidity."
-      : " Low liquidity; moves may be noisy.";
+        ? " Moderate liquidity."
+        : " Low liquidity; moves may be noisy.";
   return { trend, description: description + liquidityNote };
 }
 
@@ -420,15 +410,15 @@ function getSuggestedStake(confidence, totalVolume, hoursRemaining) {
       typeof confidence === "number"
         ? confidence
         : confidence === "Very High"
-        ? 90
-        : confidence === "High"
-        ? 75
-        : confidence === "Medium"
-        ? 50
-        : confidence === "Low"
-        ? 25
-        : 10
-    )
+          ? 90
+          : confidence === "High"
+            ? 75
+            : confidence === "Medium"
+              ? 50
+              : confidence === "Low"
+                ? 25
+                : 10,
+    ),
   );
   const liquidityFactor = Math.min(1, totalVolume / 10000); // caps at 1 after ₹10k volume
   const timeFactor =
@@ -443,7 +433,7 @@ function getSuggestedStake(confidence, totalVolume, hoursRemaining) {
 function generateSimpleRecommendation(
   yesPercentage,
   totalVolume,
-  hoursRemaining
+  hoursRemaining,
 ) {
   if (hoursRemaining <= 0) {
     return "Event has closed. Wait for resolution.";
