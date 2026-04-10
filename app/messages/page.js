@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -8,7 +8,7 @@ import ConversationsList from "@/app/components/messaging/ConversationsList";
 import MessageList from "@/app/components/messaging/MessageList";
 import MessageInput from "@/app/components/messaging/MessageInput";
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -53,7 +53,7 @@ export default function MessagesPage() {
       const existing = conversations.find((c) =>
         Array.isArray(c.participants)
           ? c.participants.includes(otherUserId)
-          : c.otherUser?.id === otherUserId
+          : c.otherUser?.id === otherUserId,
       );
       if (existing) {
         setActiveConversation(existing);
@@ -78,7 +78,7 @@ export default function MessagesPage() {
         const data2 = await res2.json();
         setConversations(data2.conversations || []);
         const found = (data2.conversations || []).find(
-          (c) => c.id === data.conversationId
+          (c) => c.id === data.conversationId,
         );
         if (found) setActiveConversation(found);
       }
@@ -98,7 +98,7 @@ export default function MessagesPage() {
         {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
-        }
+        },
       );
       const data = await res.json();
       setMessages(data.messages || []);
@@ -120,7 +120,7 @@ export default function MessagesPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ text }),
-      }
+      },
     );
     const data = await res.json();
     if (data.success) {
@@ -130,7 +130,7 @@ export default function MessagesPage() {
         {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
-        }
+        },
       );
       const data2 = await res2.json();
       setMessages(data2.messages || []);
@@ -190,5 +190,22 @@ export default function MessagesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-1 bg-neutral-900 border border-neutral-800 rounded-lg p-3 h-[70vh]" />
+            <div className="md:col-span-2 bg-neutral-900 border border-neutral-800 rounded-lg p-3 h-[70vh]" />
+          </div>
+        </div>
+      }
+    >
+      <MessagesPageContent />
+    </Suspense>
   );
 }
